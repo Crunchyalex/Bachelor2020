@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<svg width="1670" height="805"></svg>
+
+
+<style>
+.text {
+    pointer-events: none;
+}
+/* svg {
+  background: url('https://www.google.nl/images/branding/googlelogo/2x/googlelogo_color_272x92dp.png') no-repeat;
+} */
+
+</style>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/roughjs@3.1.0/dist/rough.min.js"></script> 
+<script src="node_modules/undo-manager/lib/undomanager.js"></script>
+<script src="https://unpkg.com/d3-force-attract@latest"></script> 
+<script src="https://d3js.org/d3-ease.v1.min.js"></script>
+<script src="http://pypyjs.org/pypyjs-release/lib/Promise.min.js"></script>
+  <script src="http://pypyjs.org/pypyjs-release/lib/FunctionPromise.js"></script>
+  <script src="http://pypyjs.org/pypyjs-release/lib/pypyjs.js"></script>
+
+  <script type="text/javascript">
+    /* pypyjs.ready().then(function() {
+      // this callback is fired when the interpreter is ready for use.
+      console.log("python ready")
+    })
+    console.log("hey") */
+  </script>
+<script>
+
+
+var data;
+
+/* d3.json("data.json").then( function(res) {
+    
+    data = res;
+    execute();
+}); */
+
+
+
+// credit to : https://codepen.io/katzkode/pen/EWJxPv
+class Node {
+    constructor(value){
+        this.value = value;
+        this.parent = null;
+        this.left = null;
+        this.right = null;
+    }
+}
+
+class BinarySearchTree {
+    constructor(node){
+        this.root = node;
+        this.i = 0;
+        
+    }
+    
+    // Insert Node
+    insert(node, root){
+        if (node.value == root.value){
+            return ;
+        }
+        else if(node.value < root.value){
+            // check if left subtree is null
+            if (root.left != null){
+                this.insert(node, root.left);  
+            }
+            else{
+                root.left = node;
+                node.parent = root;
+            }
+        } else {
+            // check if right subtree is null
+            if (root.right != null){
+                this.insert(node, root.right); 
+            }
+            else{
+                root.right = node; 
+                node.parent = root;
+            }
+        }    
+    }
+
+    
+
+    
+
+    recGet(node, i) {
+      if (node === null) return null;
+      var n = {
+        name: "lol",
+        value: node.value,
+        children: [],
+        i: this.i, 
+        visible: true
+      };
+      this.i += 1;
+      var l = this.recGet(node.left)
+      var r = this.recGet(node.right)
+
+      if (l !== null) n.children.push(l);
+      if (r !== null) n.children.push(r);
+
+      return n;
+    }
+    getObject(){
+      return this.recGet(this.root);
+    }
+}
+
+var undoManager = new UndoManager()
+execute();
+function execute() {
+
+
+  var start_node_count = 100;
+
+var node = new Node(start_node_count / 2);
+var tree = new BinarySearchTree(node);
+
+
+for (i = 0; i < start_node_count; i++) {
+    tree.insert(new Node(Math.round(Math.random() * start_node_count)), tree.root); 
+}
+
+
+data = tree.getObject();
+
+var index_count = function() {
+  var i = tree.i;
+  tree.i += 1;
+  return i;
+}
+
+var svg = d3.select("svg");
+var height = svg.attr("height")
+var width = svg.attr("width");
+var treemap = d3.tree().size([height, width]);
+/* var treemap = d3.treemap()
+    .tile(d3.treemapResquarify)
+    .size([width, height])
+    .round(false)
+    .paddingInner(1); */
+
+
+var zoom = d3.zoom()
+      .extent([[0, 0], [width, height]])
+      .scaleExtent([0.5, 2])
+      .on("zoom", zoomed)
+      
+svg.call(zoom, d3.zoomIdentity.translate(100, 50).scale(2));
+
+
+var g = svg.append("g")
+          .attr("class", "everything");
+
+var start_transform = g.attr("transform", "translate(0, 0)");
+
+var temp_node;
+
+function zoomed() {
+    g.attr("transform", d3.event.transform);
+  }
+drag = simulation => {
+  
+  function dragstarted(d) {
+    if (!d3.event.active) simulation.alphaTarget(0.3).restart();
+    d.fx = d.x;
+    d.fy = d.y;
+  }
+  
+  function dragged(d) {
+    d.fx = d3.event.x;
+    d.fy = d3.event.y;
+
+    d3.selectAll("circle").attr("stroke", null) // clear all highlighted circle
+    
+    nodes.some(function(n, i) { // check if there is a nearby node where aciton can be performed.
+      var dst = Math.sqrt((d.x - n.x) * (d.x - n.x) + (d.y - n.y) * (d.y - n.y))
+      if (d !== n && dst < (d.radius + n.radius)){ 
+        
+        if (d.descendants().includes(n)) { // avoid infinte loop
+          const circle = d3.selectAll("circle").filter(function(c) { return c === n});
+        
+          circle.attr("stroke-width", 4)
+            .attr("stroke", "red"); 
+          return false;
+        }
+        const circle = d3.selectAll("circle").filter(function(c) { return c === n});
+        circle.attr("stroke-width", 4)
+          .attr("stroke", "green"); 
+        /* if (!temp_node)
+        {
+          temp_node = d3.hierarchy({name: "lol2", value: 200, i: -1, children:[], visible: false})
+          temp_node.depth = n.depth + 1;
+          temp_node.height = n.height - 1;
+          temp_node.parent = n; 
+          addChild(temp_node, n);
+          restart();
+        } */
+        return true;
+      }
+    })
+
+  }
+  
+  function dragended(d) {
+    if (!d3.event.active) simulation.alphaTarget(0);
+    d.fx = null;
+    d.fy = null;
+    
+    nodes.some(function(n, i) {
+      var dst = Math.sqrt((d.x - n.x) * (d.x - n.x) + (d.y - n.y) * (d.y - n.y))
+      if (d !== n && dst < (d.radius + n.radius)){ 
+        if (d.descendants().includes(n)) { // avoid infinte loop
+          console.log("Infinte loop, can't add to a child.")
+          //swap(d, n)
+          return true;
+        }
+        // check angle between inserted node and existing children and check if its left or right child.
+        if (n.children)
+        {
+          if (n.children.length > 0){
+            var angleDeg = function(p1, p2) { 
+              return Math.abs(Math.atan2(p2.y - p1.y,p2.x - p1.x) * 180 / Math.PI) * -1;
+
+              }
+/*           
+            console.log(angleDeg(d, n))
+            console.log(angleDeg(child, n)) */
+            var child = n.children[0]
+            var temp = n.children.concat([d]).sort((a, b) => (angleDeg(a, n) < angleDeg(b, n)) ? 1 : -1)
+            
+            attach(d, n, temp.indexOf(d))
+
+            
+            /* if (angleDeg(d, n) > angleDeg(child, n))
+            {
+              
+            }
+            else {
+              attach(d, n, 1)
+            } */
+          }
+        } 
+        else {
+          attach(d, n, 0)
+        }
+        return true;
+      }
+    });
+    // remove all the highlighted circle
+    d3.selectAll("circle").attr("stroke", null)
+    
+  }
+  
+  return d3.drag()
+      .on("start", dragstarted)
+      .on("drag", dragged)
+      .on("end", dragended);
+}
+var node_being_created;
+var extra_nodes = []
+
+ d3.select("svg").on("mousedown", function() {
+    var coord = d3.mouse(this);
+    if (this == d3.event.target) {
+        
+        /* var n = {name: "lol2", value: 15, i: -1, children:[], done: false};
+        node_being_created = d3.hierarchy(n)
+        node_being_created.x = coord[0]
+        node_being_created.y = coord[1]
+        node_being_created.depth = 5
+        extra_nodes.push(node_being_created)
+        restart(); */
+    }
+  })
+  .on("mouseup", function() {
+    var coord = d3.mouse(this);
+    if (this == d3.event.target) {
+        
+        /* extra_nodes.forEach(function(d) {
+          d.data.done = true;
+        })
+        restart(); */
+    }
+  })
+  .on("contextmenu", function (d, i) {
+        d3.event.preventDefault();}
+  ) 
+
+d3.select("body").on('keydown', function() {
+  
+    if ((event.ctrlKey || event.metaKey) && event.key==="c") {
+      console.log("copy");
+    }
+    else if ((event.ctrlKey || event.metaKey) && event.key==="v") {
+      console.log("paste");
+    }
+    else if ((event.ctrlKey || event.metaKey) && event.shiftKey && event.key==="z") {
+      console.log("redo");
+      undoManager.redo();
+    }
+    else if ((event.ctrlKey || event.metaKey) && event.key==="z") {
+      console.log("undo");
+      undoManager.undo();
+      
+    }
+    else if (event.key==="Escape") {
+      console.log("escape");
+      pypyjs.exec(
+        // Run some Python
+        'y = [x**2. for x in range(10)]'
+      ).then(function() {
+        // Transfer the value of y from Python to JavaScript
+        return pypyjs.get('y');
+      }).then(function(result) {
+        // Display an alert box with the value of y in it
+        console.log(result);
+      });
+
+    }
+    else if (event.key === " ") {
+      
+      svg.transition()
+      .duration(750)
+      .call(zoom.transform,
+        d3.zoomIdentity
+        .translate(0, 0)
+      );
+    }
+});
+
+var undoManager = new UndoManager()
+
+var swap = function(d, n) {
+  var d_children = d.children;
+  var d_parent = d.parent;
+  var n_children = n.children; 
+  var n_parent = n.parent;
+  var n_index =  n_parent.children.indexOf(n)
+  var n_depth = n.depth
+  var n_height = n.height
+
+  removeChild(n, n_parent);
+  addChild(n, d_parent, d_parent.children.indexOf(d));
+  n.children = d.children;
+  n.depth = d.depth;
+  n.height = d.height;
+  n.children.forEach(function(d) { d.parent = n; });
+  
+  removeChild(d, d_parent);
+  addChild(d, n_parent, n_index);
+  d.depth = n_depth;
+  d.height = n_height;
+  d.children = n_children;
+  d.children.forEach(function(d) { d.parent = d; });
+  restart();
+} 
+
+var attach = function(d, n, index) {
+  var d_index = d.parent.children.indexOf(d);
+  
+        
+
+        var parent = d.parent;
+        // first creation
+        removeChild(d, parent);
+        addChild(d, n, index);
+      
+        
+        // make undo-able
+        undoManager.add({
+            undo: function() {
+              removeChild(d, n);
+              addChild(d, parent, d_index);
+              restart();
+            },
+            redo: function() {
+              removeChild(d, parent);
+              addChild(d, n, index);
+              restart();
+            }
+        });
+          restart();
+        setTimeout(function () { // wait 1 milisecond with restarting to avoid calling dragended on two elements
+        }, 1);
+        
+}
+
+var addChild = function(node, parent, index) {
+
+  function update_depth(n, depth) {
+        n.depth = depth + 1;
+        if (n.children) {
+          n.children.forEach(function(d) {
+            update_depth(d, depth + 1)
+          })
+        }
+    }
+
+  update_depth(node, parent.depth)
+
+  if (parent.children) {
+    parent.children.splice(index, 0, node);
+  } 
+  else {
+    parent.children = [node];
+  }
+  
+
+  node.parent = parent;
+
+  
+  
+}
+
+var removeChild = function(node, parent) {
+  if (!parent.children) return;
+
+  var index = parent.children.indexOf(node);
+  
+  if (index !== -1) {
+    parent.children.splice(index, 1); 
+  }
+}
+
+
+var createChild = function (node, parent) {
+  var index = parent.children.findIndex(i => i.index === node.index);
+  if (index === -1) index = parent.children.length;
+  
+  // first creation
+  addChild(node, parent, index);
+  // make undo-able
+  undoManager.add({
+      undo: function() {
+        removeChild(node, parent)
+        restart();
+      },
+      redo: function() {
+        addChild(node, parent, index);
+        restart();
+      }
+  });
+    
+}
+var deleteChild = function (node, parent) {
+    var index = parent.children.findIndex(i => i.index === node.index);
+    // first creation
+    removeChild(node, parent)
+    console.log("removed")
+    // make undo-able
+    undoManager.add({
+        undo: function() {
+          addChild(node, parent, index);
+          restart();
+        },
+        redo: function() {
+          removeChild(node, parent)
+          restart();
+        }
+    });
+    
+}
+
+
+var root = d3.hierarchy(data);
+  var links = root.links();
+  var nodes = root.descendants();
+
+
+  var link;
+  var node;
+  var texts;
+  var root;
+  var links;
+  var nodes;
+
+var treemap = d3.tree()
+    //.size([width, height])
+    .nodeSize([40, 100])
+    .separation(function(a, b) {
+        return a.parent == b.parent ? 1 : 2;
+    });
+    
+var scale = d3.scaleOrdinal(d3.schemeCategory10);
+
+
+var myColor = d3.scaleLinear().domain([1,start_node_count])
+  .range(["lightgreen", "lightblue"])
+
+
+
+function restart() {
+
+  
+  //root = d3.hierarchy(root);
+  nodes.forEach(function(d) {
+    if (d.children !== undefined )
+    {
+      if (d.children !== null) {
+        if (d.children.length === 0){ 
+          d.children = null;
+        }
+      }
+    }
+  });
+
+
+  
+  var treeData = treemap(root);
+  
+  links = treeData.links();
+  nodes = treeData.descendants();
+  
+  
+
+  //nodes = nodes.concat(extra_nodes)
+  /* var temp = treemap(root.sum(function(d) { return d.value; })
+    .sort(function(a, b) { return b.height - a.height || b.value - a.value; })).descendants()
+   */
+  
+  //console.log(temp)
+
+  nodes.forEach(function(d) {
+    d.radius = 30;
+    d.x += width/2;
+  });
+  //.size([width, height])
+
+ svg = d3.select("svg");
+
+ //link = link.data(links, function(d) { return d.source.index + "-" + d.target.index; });
+ link = g
+  .selectAll("line")
+  .data(links)
+  .join("line")
+    .attr("stroke", "#999")
+    .attr("stroke-width", 10)
+    .attr("stroke-opacity", 0.6)
+
+ 
+
+ node = g
+  .selectAll("circle")
+  .data(nodes)
+  .join("circle")
+    .attr("r", function(d){
+      
+      return d.radius})
+    //.attr("y", function(d) { return (d.depth + 1) * 100 ; })
+    //.attr("id", "svg")
+    .attr("fill",function(d){ return myColor(d.value)})
+    //.attr("opacity", 0)
+    .on("mouseover", function(d, i) {
+      const circle = d3.select(this); // can't use arrow scoping
+      circle.transition().duration(1000).ease(d3.easeElastic).attr("r", d.radius * 1.3);
+      //circle.transition().duration(1000).ease(d3.easeElastic).style("fill", "black");
+      }) 
+      .on("mouseout", function(d, i) {
+            const circle = d3.select(this); // can't use arrow scoping
+            circle.transition().duration(1000).ease(d3.easeElastic).attr("r", d.radius)
+            
+            })
+    .on("click", function(d, i) {
+      const circle = d3.select(this); // can't use arrow scoping
+        //  console.log("double click");
+        var temp = circle.data()[0];
+        console.log(temp);
+         // temp.children.push({name: "lol", value: 10});
+         /* if (temp.children === undefined) temp.children = []
+         if (temp.children === null) temp.children = []
+         if (temp.children.length < 2) {
+         var c = index_count()
+         
+         var n = {name: "lol2", value: 10, i: c, children:[]}
+         var tree_node = d3.hierarchy(n);
+         tree_node.depth = temp.depth + 1;
+         tree_node.height = temp.height - 1;
+         tree_node.parent = temp; 
+          createChild(tree_node, temp);
+          restart();
+        } */
+    })
+    .on("contextmenu", function (d, i) {
+        d3.event.preventDefault();
+        const circle = d3.select(this); // can't use arrow scoping
+          
+        //  console.log("double click");
+          var temp = circle.data()[0];
+          
+          deleteChild(temp, temp.parent)
+          restart();
+    })
+    .on("dblclick", function(d) {
+      console.log(d.y);
+      svg.transition()
+      .duration(750)
+      .call(zoom.transform,
+        d3.zoomIdentity
+        .translate(d.x, d.y)
+      );
+    })
+    
+    .call(drag(simulation))
+  
+  d3.selectAll("circle")
+  .filter(function(d) {return d.data.visible === false })
+  .attr("opacity",0.2)
+  .attr("fill", "grey")
+  .attr("r",30)
+  .attr("fill", "grey")
+
+  
+  // render ordering
+  d3.selectAll("circle").raise()
+  d3.selectAll("text").raise()
+  d3.selectAll("line").lower()
+  
+  
+  
+    
+  //const roughSvg = document.getElementById('new');
+  /* var e = document.getElementById('new');
+  console.log(e);
+  const rc = rough.svg(e);
+  console.log(rc); */
+  /* let _svg = d3.select('canvas')
+
+  console.log(_svg)
+        _svg.append('canvas')
+        .attr('id', 'new')
+        .attr('width', width )
+        .attr('height', height)
+          .append("g")
+          .attr("transform",
+                "translate(" + width + "," + height + ")")
+
+
+    const roughSvg = document.getElementById('new');
+    console.log(roughSvg)
+    const rc = rough.canvas(roughSvg);
+
+    console.log(rc)
+
+
+
+    rc.circle(530, 150, 80, {
+      stroke: 'black', strokeWidth: 2,
+      fill: 'lightblue', fillWeight: 4, hachureGap: 6
+    });
+    rc.circle(480, 50, 80, {
+      stroke: 'black', strokeWidth: 2,
+      fill: 'lightgreen', fillWeight: 4, hachureGap: 6
+    });
+    console.log(rc)
+ */
+
+
+/*    d3.selectAll('circle').select('path')
+	.attr('visibility', 'hidden')  */
+
+
+  
+      texts  = g
+        .selectAll('text')
+        .data(nodes)
+        .join('text')
+        .text(node => node.value)
+        .attr("pointer-events", "none")
+        .attr('font-size',18)//font size
+        .attr('font-family',"monaco")//font size
+        .attr('dx', -5)//positions text towards the left of the center of the circle
+        .attr('dy',4)
+      
+      //texts.exit().remove();
+      
+   // texts.selectAll("text").exit().remove();
+  var maxStrength = 0.15;
+  const max = nodes.reduce((prev, current) => (prev.depth > current.depth) ? prev : current)
+  
+  simulation.force('attract').strength(function(d) {
+    
+    return Math.pow((d.depth / max.depth) * maxStrength, 2);
+    //return d.radius / d.radius;
+  })
+   svg.on('mousemove', function () {
+    simulation.force('attract').target(d3.mouse(this));
+    simulation
+      .alphaTarget(0.3)
+      .restart();
+  });
+   simulation.nodes(nodes);
+   simulation.force("link").links(links);
+    simulation.alpha(0.5).restart(); 
+
+    simulation.on("tick", (e) => {
+      
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+    node
+        .attr("cx", d => d.x)
+        .attr("cy", d => d.y);
+      texts.attr("x", function(d) { return d.x; })
+          .attr("y", function(d) { return d.y; });
+  });
+  
+} 
+
+
+
+
+const simulation = d3.forceSimulation(nodes)
+  .force('y', d3.forceY().y(function(d) {
+    return (d.depth) * 100 + 50;
+}).strength(0.5)) 
+  
+
+  .force("link", d3.forceLink(links).id(d => d.id).distance(100).strength(0.5))
+  .force("charge", d3.forceManyBody().strength(-50))
+  .force('collision', d3.forceCollide().radius(function(d) {
+    return d.radius;
+  }))
+  .force('attract', d3.forceAttract()	// see 'Accessing the module' above for the correct syntax
+    .target([width/2, height/2])
+    .strength(0.1))
+    
+//  .force("x", d3.forceX(width / 2).strength(0.1))
+  //  .force("y", d3.forceY());
+
+
+
+  simulation.force('X', d3.forceX().x(function(d) {
+    return d.x;
+}).strength(0.65));
+
+  restart();
+  
+ 
+}
+</script>
